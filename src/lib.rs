@@ -83,6 +83,20 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
         path.push::<PathBuf>(key.into());
         Ok(std::fs::remove_file(path)?)
     }
+    /// List keys in this bucket
+    pub fn list(&self) -> Result<Vec<String>> {
+        let path = self.dir.clone();
+        let paths = fs::read_dir(path)?;
+        let mut r = Vec::new();
+        paths.for_each(|name| {
+            if let Ok(na) = name {
+                if let Ok(n) = na.file_name().into_string() {
+                    r.push(n);
+                }
+            }
+        });
+        Ok(r)
+    }
 }
 
 #[cfg(test)]
@@ -104,5 +118,7 @@ mod tests {
         let t2: Thing = b.get("key").expect("fail to load");
         println!("t {:?}", t2.clone());
         assert_eq!(t1, t2);
+        let list = b.list().expect("fail list");
+        assert_eq!(list, vec!["key".to_string()]);
     }
 }
