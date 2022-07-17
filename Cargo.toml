@@ -3,6 +3,9 @@ name = "fsdb"
 version = "0.1.0"
 edition = "2021"
 authors = ["evanfeenstra <evanfeenstra@gmail.com>"]
+description = "filesystem database"
+repository = "https://github.com/Evanfeenstra/fsdb"
+license = "MIT"
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["derive"] }
