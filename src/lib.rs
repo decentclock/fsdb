@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 extern crate serde;
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 pub struct Fsdb {
     dir: PathBuf,
@@ -68,10 +68,7 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
         Ok(())
     }
     /// Get a key
-    pub fn get<T>(&self, key: &str) -> Result<T>
-    where
-        for<'de> T: Deserialize<'de>,
-    {
+    pub fn get(&self, key: &str) -> Result<V> {
         let mut path = self.dir.clone();
         path.push(key);
         let f = fs::File::open(path)?;
