@@ -33,7 +33,7 @@ impl Fsdb {
     /// Create a new Fsdb
     pub fn new(dir: &str) -> Result<Self> {
         if !Path::new(dir).exists() {
-            fs::create_dir(dir)?;
+            fs::create_dir_all(dir)?;
         }
         Ok(Self { dir: dir.into() })
     }
