@@ -14,6 +14,7 @@ pub struct Fsdb {
 
 pub struct Bucket<V> {
     dir: PathBuf,
+    max_file_name: Option<usize>,
     _v: PhantomData<V>,
 }
 
@@ -47,22 +48,27 @@ impl Fsdb {
         }
         Ok(Bucket {
             dir: dir.into(),
+            max_file_name: None,
             _v: PhantomData,
         })
     }
 }
 
 impl<V: Serialize + DeserializeOwned> Bucket<V> {
+    /// Set a max file name length for this bucket
+    pub fn set_max_file_name(&mut self, x: usize) {
+        self.max_file_name = Some(x);
+    }
     /// Check if a key exists
     pub fn exists(&self, key: &str) -> bool {
         let mut path = self.dir.clone();
-        path.push(key);
+        path.push(self.maxify(key));
         path.exists()
     }
     /// Create a key
     pub fn put(&self, key: &str, value: V) -> Result<()> {
         let mut path = self.dir.clone();
-        path.push::<PathBuf>(key.into());
+        path.push(self.maxify(key));
         let mut f = fs::File::create(path.clone())?;
         encode::write(&mut f, &value)?;
         Ok(())
@@ -70,14 +76,14 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
     /// Get a key
     pub fn get(&self, key: &str) -> Result<V> {
         let mut path = self.dir.clone();
-        path.push(key);
+        path.push(self.maxify(key));
         let f = fs::File::open(path)?;
         Ok(decode::from_read(f)?)
     }
     /// Delete a file
     pub fn remove(&self, key: &str) -> Result<()> {
         let mut path = self.dir.clone();
-        path.push::<PathBuf>(key.into());
+        path.push(self.maxify(key));
         Ok(std::fs::remove_file(path)?)
     }
     /// List keys in this bucket
@@ -94,6 +100,20 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
         });
         Ok(r)
     }
+    /// Clear all keys in this bucket
+    pub fn clear(&self) -> Result<()> {
+        let path = self.dir.clone();
+        Ok(fs::remove_dir_all(path)?)
+    }
+    fn maxify(&self, name: &str) -> String {
+        if let Some(max) = self.max_file_name {
+            let mut s = name.to_string();
+            s.truncate(max);
+            s
+        } else {
+            name.to_owned()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -109,13 +129,15 @@ mod tests {
     #[test]
     fn test_db() {
         let db = Fsdb::new("testdb").expect("fail Fsdb::new");
-        let b = db.bucket("hi").expect("fail bucket");
+        let mut b = db.bucket("hi").expect("fail bucket");
+        b.set_max_file_name(8);
         let t1 = Thing { n: 1 };
-        b.put("key", t1.clone()).expect("failed to save");
-        let t2: Thing = b.get("key").expect("fail to load");
+        b.put("keythatisverylong", t1.clone())
+            .expect("failed to save");
+        let t2: Thing = b.get("keythatisverylong").expect("fail to load");
         println!("t {:?}", t2.clone());
         assert_eq!(t1, t2);
         let list = b.list().expect("fail list");
-        assert_eq!(list, vec!["key".to_string()]);
+        assert_eq!(list, vec!["keythati".to_string()]);
     }
 }
