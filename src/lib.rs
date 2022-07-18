@@ -54,6 +54,7 @@ impl Fsdb {
     }
 }
 
+// store things at top level of a bucket
 impl<V: Serialize + DeserializeOwned> Bucket<V> {
     /// Set a max file name length for this bucket
     pub fn set_max_file_name(&mut self, x: usize) {
@@ -69,26 +70,94 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
     pub fn put(&self, key: &str, value: V) -> Result<()> {
         let mut path = self.dir.clone();
         path.push(self.maxify(key));
-        let mut f = fs::File::create(path.clone())?;
-        encode::write(&mut f, &value)?;
-        Ok(())
+        self.fs_put(path, value)
     }
     /// Get a key
     pub fn get(&self, key: &str) -> Result<V> {
         let mut path = self.dir.clone();
         path.push(self.maxify(key));
-        let f = fs::File::open(path)?;
-        Ok(decode::from_read(f)?)
+        self.fs_get(path)
     }
     /// Delete a file
     pub fn remove(&self, key: &str) -> Result<()> {
         let mut path = self.dir.clone();
         path.push(self.maxify(key));
-        Ok(std::fs::remove_file(path)?)
+        self.fs_remove(path)
     }
-    /// List keys in this bucket
+    /// List keys in this bucket (or sub-buckets in this bucket)
     pub fn list(&self) -> Result<Vec<String>> {
         let path = self.dir.clone();
+        self.fs_list(path)
+    }
+    /// Clear all keys in this bucket
+    pub fn clear(&self) -> Result<()> {
+        let path = self.dir.clone();
+        self.fs_clear(path)
+    }
+}
+
+// "within" funcs to store things one level deeper
+impl<V: Serialize + DeserializeOwned> Bucket<V> {
+    /// Check if a key exists within sub-bucket
+    pub fn exists_within(&self, key: &str, sub: &str) -> bool {
+        let mut path = self.dir.clone();
+        path.push(sub);
+        path.push(self.maxify(key));
+        path.exists()
+    }
+    /// Create a key in a sub-bucket
+    pub fn put_within(&self, key: &str, value: V, sub: &str) -> Result<()> {
+        let mut path = self.dir.clone();
+        path.push(sub);
+        if !Path::new(&path).exists() {
+            fs::create_dir(path.clone())?;
+        }
+        path.push(self.maxify(key));
+        self.fs_put(path, value)
+    }
+    /// Get a key in a sub-bucket
+    pub fn get_within(&self, key: &str, sub: &str) -> Result<V> {
+        let mut path = self.dir.clone();
+        path.push(sub);
+        path.push(self.maxify(key));
+        self.fs_get(path)
+    }
+    /// Delete a file in a sub-bucket
+    pub fn remove_within(&self, key: &str, sub: &str) -> Result<()> {
+        let mut path = self.dir.clone();
+        path.push(sub);
+        path.push(self.maxify(key));
+        self.fs_remove(path)
+    }
+    /// List keys in this bucket's sub-bucket
+    pub fn list_within(&self, sub: &str) -> Result<Vec<String>> {
+        let mut path = self.dir.clone();
+        path.push(sub);
+        self.fs_list(path)
+    }
+    /// Clear all keys in this sub-bucket
+    pub fn clear_within(&self, sub: &str) -> Result<()> {
+        let mut path = self.dir.clone();
+        path.push(sub);
+        self.fs_clear(path)
+    }
+}
+
+// internal implementations
+impl<V: Serialize + DeserializeOwned> Bucket<V> {
+    fn fs_put(&self, path: PathBuf, value: V) -> Result<()> {
+        let mut f = fs::File::create(path.clone())?;
+        encode::write(&mut f, &value)?;
+        Ok(())
+    }
+    fn fs_get(&self, path: PathBuf) -> Result<V> {
+        let f = fs::File::open(path)?;
+        Ok(decode::from_read(f)?)
+    }
+    fn fs_remove(&self, path: PathBuf) -> Result<()> {
+        Ok(std::fs::remove_file(path)?)
+    }
+    fn fs_list(&self, path: PathBuf) -> Result<Vec<String>> {
         let paths = fs::read_dir(path)?;
         let mut r = Vec::new();
         paths.for_each(|name| {
@@ -100,9 +169,7 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
         });
         Ok(r)
     }
-    /// Clear all keys in this bucket
-    pub fn clear(&self) -> Result<()> {
-        let path = self.dir.clone();
+    fn fs_clear(&self, path: PathBuf) -> Result<()> {
         Ok(fs::remove_dir_all(path)?)
     }
     fn maxify(&self, name: &str) -> String {
@@ -139,5 +206,19 @@ mod tests {
         assert_eq!(t1, t2);
         let list = b.list().expect("fail list");
         assert_eq!(list, vec!["keythati".to_string()]);
+    }
+
+    #[test]
+    fn test_within() {
+        let db = Fsdb::new("testdb2").expect("fail Fsdb::new");
+        let b = db.bucket("hi").expect("fail bucket");
+        let t1 = Thing { n: 1 };
+        b.put_within("key", t1.clone(), "sub1")
+            .expect("failed to save");
+        let t2: Thing = b.get_within("key", "sub1").expect("fail to load");
+        println!("t {:?}", t2.clone());
+        assert_eq!(t1, t2);
+        let list = b.list_within("sub1").expect("fail list");
+        assert_eq!(list, vec!["key".to_string()]);
     }
 }
