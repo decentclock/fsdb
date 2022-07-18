@@ -101,14 +101,14 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
     /// Check if a key exists within sub-bucket
     pub fn exists_within(&self, key: &str, sub: &str) -> bool {
         let mut path = self.dir.clone();
-        path.push(sub);
+        path.push(self.maxify(sub));
         path.push(self.maxify(key));
         path.exists()
     }
     /// Create a key in a sub-bucket
     pub fn put_within(&self, key: &str, value: V, sub: &str) -> Result<()> {
         let mut path = self.dir.clone();
-        path.push(sub);
+        path.push(self.maxify(sub));
         if !Path::new(&path).exists() {
             fs::create_dir(path.clone())?;
         }
@@ -118,27 +118,27 @@ impl<V: Serialize + DeserializeOwned> Bucket<V> {
     /// Get a key in a sub-bucket
     pub fn get_within(&self, key: &str, sub: &str) -> Result<V> {
         let mut path = self.dir.clone();
-        path.push(sub);
+        path.push(self.maxify(sub));
         path.push(self.maxify(key));
         self.fs_get(path)
     }
     /// Delete a file in a sub-bucket
     pub fn remove_within(&self, key: &str, sub: &str) -> Result<()> {
         let mut path = self.dir.clone();
-        path.push(sub);
+        path.push(self.maxify(sub));
         path.push(self.maxify(key));
         self.fs_remove(path)
     }
     /// List keys in this bucket's sub-bucket
     pub fn list_within(&self, sub: &str) -> Result<Vec<String>> {
         let mut path = self.dir.clone();
-        path.push(sub);
+        path.push(self.maxify(sub));
         self.fs_list(path)
     }
     /// Clear all keys in this sub-bucket
     pub fn clear_within(&self, sub: &str) -> Result<()> {
         let mut path = self.dir.clone();
-        path.push(sub);
+        path.push(self.maxify(sub));
         self.fs_clear(path)
     }
 }
